@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!which python
 
 import sys
 
@@ -43,6 +43,12 @@ if __name__ == '__main__':
     def runserver(host='0.0.0.0', port=8000, debug=True, reloader=True):
         app = get_app()
         app.run(host=host, port=port, debug=debug, use_debugger=debug, use_reloader=reloader)
+
+    @manager.command
+    def list_routes():
+        app = get_app()
+        for rule in app.url_map.iter_rules():
+            print rule
 
     for mod in [importer_commands, test_commands]:
         if hasattr(mod, 'make_commands'):

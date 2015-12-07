@@ -7,8 +7,6 @@ from flask import Flask
 from flask.ext.sqlalchemy import SQLAlchemy
 from flask.ext.bootstrap import Bootstrap
 
-from app.lib.session import Session
-
 
 apps = {}
 
@@ -17,8 +15,8 @@ db = SQLAlchemy()
 
 class Config(object):
     CONFIG_DIRS = [
-        os.path.join(os.sep, 'etc', 'ortalis'),
-        os.path.expanduser(os.path.join('~', '.config', 'ortalis')),
+        os.path.join(os.sep, 'etc', 'scheduleparty'),
+        os.path.expanduser(os.path.join('~', '.config', 'scheduleparty')),
         os.path.join(os.path.dirname(__file__), '..', 'config'),
     ]
 
@@ -67,14 +65,13 @@ def create_app(config):
     db.init_app(app)
     Bootstrap(app)
 
-    Session.install(app)
-
-    from views import (
-        index as index_view,
+    from views.api.v1 import (
         user as user_view,
-    )
-    app.register_blueprint(index_view.app, url_prefix=None)
-    app.register_blueprint(user_view.app, url_prefix='/user')
+        )
+    for blueprint, prefix in ((user_view.app, '/api'),):
+        if hasattr(blueprint, '_extra_url_prefix'):
+            prefix += blueprint._extra_url_prefix
+        app.register_blueprint(blueprint, url_prefix=prefix)
 
     return app
 
