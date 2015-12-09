@@ -15,8 +15,7 @@ from app import (
     )
 
 from app.commands import (
-    importer as importer_commands,
-    test as test_commands,
+    user as user_commands
     )
 
 if __name__ == '__main__':
@@ -50,7 +49,7 @@ if __name__ == '__main__':
         for rule in app.url_map.iter_rules():
             print rule
 
-    for mod in [importer_commands, test_commands]:
+    for mod in [user_commands]:
         if hasattr(mod, 'make_commands'):
             mod.make_commands(app, manager)
 

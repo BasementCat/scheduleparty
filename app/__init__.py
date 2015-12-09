@@ -3,9 +3,13 @@ import json
 import hashlib
 import pickle
 
+from werkzeug.exceptions import default_exceptions
+
 from flask import Flask
 from flask.ext.sqlalchemy import SQLAlchemy
 from flask.ext.bootstrap import Bootstrap
+
+from app.lib.apitools import json_error_handler
 
 
 apps = {}
@@ -23,6 +27,9 @@ class Config(object):
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+        # # Global configs that cannot be overridden
+        # self.TRAP_HTTP_EXCEPTIONS = False
 
     @classmethod
     def from_dicts(self, *dicts):
@@ -65,12 +72,14 @@ def create_app(config):
     db.init_app(app)
     Bootstrap(app)
 
+    for code in default_exceptions.iterkeys():
+        app.errorhandler(code)(json_error_handler)
+    app.errorhandler(Exception)(json_error_handler)
+
     from views.api.v1 import (
-        user as user_view,
+        user as api_v1_user_view,
         )
-    for blueprint, prefix in ((user_view.app, '/api'),):
-        if hasattr(blueprint, '_extra_url_prefix'):
-            prefix += blueprint._extra_url_prefix
+    for blueprint, prefix in ((api_v1_user_view.app, '/api/v1.0/user'),):
         app.register_blueprint(blueprint, url_prefix=prefix)
 
     return app

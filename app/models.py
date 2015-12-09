@@ -70,7 +70,7 @@ class User(TimestampMixin, Model):
     # email_verification_expiration = db.Column(sau.ArrowType(), index=True)
     # email_reset_code = db.Column(db.String(64), index=True)
     # email_reset_expiration = db.Column(sau.ArrowType(), index=True)
-    panels = db.relationship('Panel', secondary='Presenter')
+    # panels = db.relationship('Panel', secondary='Presenter')
 
     @classmethod
     def slugify_username(self, username):
@@ -115,16 +115,16 @@ class Presenter(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'presenter'
     id = db.Column(db.BigInteger(), primary_key=True)
     organization_id = db.Column(db.BigInteger(), db.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
-    organization = db.relationship('Organization', backref=db.backref('presenters'), lazy='dynamic')
+    organization = db.relationship('Organization', backref=db.backref('presenters'))
     user_id = db.Column(db.BigInteger(), db.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE'), index=True)
-    user = db.relationship('User', backref=db.backref('presenters'), lazy='dynamic')
+    user = db.relationship('User', backref=db.backref('presenters'))
 
 
 class Event(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'event'
     id = db.Column(db.BigInteger(), primary_key=True)
     organization_id = db.Column(db.BigInteger(), db.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
-    organization = db.relationship('Organization', backref=db.backref('events'), lazy='dynamic')
+    organization = db.relationship('Organization', backref=db.backref('events'))
     inherit_description = db.Column(db.Boolean(), nullable=False, default=False)
     website = db.Column(db.UnicodeText())
     inherit_website = db.Column(db.Boolean(), nullable=False, default=True)
@@ -138,18 +138,18 @@ class Venue(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'venue'
     id = db.Column(db.BigInteger(), primary_key=True)
     organization_id = db.Column(db.BigInteger(), db.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
-    organization = db.relationship('Organization', backref=db.backref('venues'), lazy='dynamic')
+    organization = db.relationship('Organization', backref=db.backref('venues'))
 
 
 class Panel(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'panel'
     id = db.Column(db.BigInteger(), primary_key=True)
     event_id = db.Column(db.BigInteger(), db.ForeignKey('event.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
-    event = db.relationship('Event', backref=db.backref('panels'), lazy='dynamic')
+    event = db.relationship('Event', backref=db.backref('panels'))
     venue_id = db.Column(db.BigInteger(), db.ForeignKey('venue.id', onupdate='CASCADE', ondelete='CASCADE'), index=True)
-    venue = db.relationship('Venue', backref=db.backref('panels'), lazy='dynamic')
+    venue = db.relationship('Venue', backref=db.backref('panels'))
     presenter_id = db.Column(db.BigInteger(), db.ForeignKey('presenter.id', onupdate='CASCADE', ondelete='CASCADE'), index=True)
-    presenter = db.relationship('Presenter', backref=db.backref('panels'), lazy='dynamic')
+    presenter = db.relationship('Presenter', backref=db.backref('panels'))
     starts_at = db.Column(sau.ArrowType(), nullable=False, index=True)
     ends_at = db.Column(sau.ArrowType(), nullable=False, index=True)
     tentative = db.Column(db.Boolean(), nullable=False, default=False)

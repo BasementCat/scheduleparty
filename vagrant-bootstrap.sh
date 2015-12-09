@@ -12,8 +12,8 @@ cat <<EOT >/etc/mysql/conf.d/listen_everywhere.cnf
 bind-address=0.0.0.0
 EOT
 
-echo "create database ortalis_dev;" | mysql -uroot
-echo "create database ortalis_test;" | mysql -uroot
+echo "create database scheduleparty_dev;" | mysql -uroot
+echo "create database scheduleparty_test;" | mysql -uroot
 echo "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'password';" |mysql -uroot
 mysqladmin -uroot password "password" # Not secure but this is not exposed to the internet, so it's fine
 service mysql restart
