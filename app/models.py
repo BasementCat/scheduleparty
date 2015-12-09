@@ -1,4 +1,5 @@
 import os
+import uuid
 
 import arrow
 from slugify import slugify
@@ -12,7 +13,7 @@ from flask import (
 
 import sqlalchemy_utils as sau
 
-from app.lib.times import parse_duration
+# from app.lib.times import parse_duration
 
 from app import db
 
@@ -101,8 +102,18 @@ class APIKey(TimestampMixin, Model):
     key = db.Column(db.String(36), primary_key=True, autoincrement=False)
     user_id = db.Column(db.BigInteger(), db.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
     user = db.relationship('User', backref=db.backref('api_keys'))
-    expires_at = db.Column(sau.ArrowType(), nullable=False, index=True)
-    used_at = db.Column(sau.ArrowType(), nullable=False, index=True)
+    expires_at = db.Column(sau.ArrowType(), index=True)
+    used_at = db.Column(sau.ArrowType(), index=True)
+
+    def __init__(self, *args, **kwargs):
+        self.key = str(uuid.uuid4())
+        super(APIKey, self).__init__(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        if self.expires_at is None:
+            return False
+        return self.expires_at > arrow.utcnow()
 
 
 class Organization(NameDescMixin, TimestampMixin, Model):

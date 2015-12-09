@@ -19,6 +19,7 @@ from app.lib.apitools import (
     )
 from app.models import (
     User,
+    APIKey,
     )
 
 
@@ -30,7 +31,12 @@ def token_new():
     try:
         user = User.query.filter(User.username == request.form['username']).one()
         if request.form['password'] == user.password:
-            return "ok"
+            key = APIKey(
+                user=user
+            )
+            db.session.add(key)
+            db.session.commit()
+            return JSONResponse(key.key)
     except KeyError:
         raise ApiError(400, "Username and password are required")
     except NoResultFound:
