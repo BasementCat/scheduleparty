@@ -1,3 +1,4 @@
+import logging
 import os
 import json
 import hashlib
@@ -15,6 +16,8 @@ from app.lib.apitools import json_error_handler
 apps = {}
 
 db = SQLAlchemy()
+
+logging.basicConfig()
 
 
 class Config(object):

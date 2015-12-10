@@ -15,7 +15,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from app import db
 from app.lib.apitools import (
     ApiError,
-    JSONResponse,
+    returns_json,
     )
 from app.models import (
     User,
@@ -27,6 +27,7 @@ app = Blueprint('v1_user', __name__)
 
 
 @app.route('/token', methods=['POST'])
+@returns_json
 def token_new():
     try:
         user = User.query.filter(User.username == request.form['username']).one()
@@ -36,10 +37,22 @@ def token_new():
             )
             db.session.add(key)
             db.session.commit()
-            return JSONResponse(key.key)
+            return key.key
     except KeyError:
         raise ApiError(400, "Username and password are required")
     except NoResultFound:
         pass
 
     raise ApiError(400, "Invalid username or password")
+
+
+@app.route('/token', methods=['GET'])
+@APIKey.authenticated
+@returns_json
+def token_list(auth_user):
+    return [
+        key.to_json()
+        for key
+        in auth_user.api_keys
+        if not key.is_expired
+    ]

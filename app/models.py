@@ -1,3 +1,4 @@
+import functools
 import os
 import uuid
 
@@ -5,10 +6,15 @@ import arrow
 from slugify import slugify
 import bcrypt
 
+from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm import joinedload
+from sqlalchemy.orm.attributes import InstrumentedAttribute
+
 from flask import (
     current_app,
     abort,
     g,
+    request,
     )
 
 import sqlalchemy_utils as sau
@@ -16,10 +22,23 @@ import sqlalchemy_utils as sau
 # from app.lib.times import parse_duration
 
 from app import db
+from app.lib.apitools import ApiError
 
 
 class Model(db.Model):
     __abstract__ = True
+
+    def to_json(self):
+        out = {}
+        for attrname, clsattr in vars(self.__class__).items():
+            if isinstance(clsattr, InstrumentedAttribute):
+                attr = getattr(self, attrname)
+                if isinstance(attr, arrow.arrow.Arrow):
+                    attr = str(attr)
+                elif isinstance(attr, Model):
+                    continue
+                out[attrname] = attr
+        return out
 
 
 class TimestampMixin(object):
@@ -114,6 +133,34 @@ class APIKey(TimestampMixin, Model):
         if self.expires_at is None:
             return False
         return self.expires_at > arrow.utcnow()
+
+    @classmethod
+    def authenticated(self, callback):
+        @functools.wraps(callback)
+        def _authenticated_impl(*args, **kwargs):
+            error = None
+            try:
+                auth_method, given_key = request.headers['Authorization'].split(' ', 1)
+                assert auth_method == 'X-API-Key', "Invalid authorization method: " + auth_method
+                assert given_key, "No key provided in authorization header"
+                key = self.query.options(joinedload('user')).filter(self.key == given_key).one()
+                if not key.is_expired:
+                    kwargs['auth_user'] = key.user
+                    return callback(*args, **kwargs)
+                # Key is expired
+                error = "Your authentication key is expired"
+            except KeyError as e:
+                # No authorization header
+                error = "No authentication was provided"
+            except AssertionError as e:
+                # Something's wrong with the key
+                error = "Malformed authorization header: '" + request.headers['Authorization'] + "'"
+            except NoResultFound as e:
+                # Can't find the key
+                error = "Invalid credentials"
+
+            raise ApiError(401, str(error), None, {'WWW-Authenticate': 'X-API-Key'})
+        return _authenticated_impl
 
 
 class Organization(NameDescMixin, TimestampMixin, Model):
