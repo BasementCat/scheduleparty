@@ -30,6 +30,22 @@ config.loadMany(
 
 logging.basicConfig()
 
-app = Bottle()
+def get_app():
+    main_app = Bottle()
 
-app.install(ApiPlugin())
+    from views.api.v1.user import app as api_v1_user_app
+
+    apps = [
+        [main_app, None],
+        [api_v1_user_app, '/v1.0/user'],
+    ]
+
+    plugins = [ApiPlugin()]
+
+    for app, mountpoint in apps:
+        if mountpoint is not None:
+            main_app.mount(mountpoint, app)
+        for plugin in plugins:
+            app.install(plugin)
+
+    return main_app

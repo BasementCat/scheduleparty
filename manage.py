@@ -14,7 +14,7 @@ if __name__ == '__main__':
             call(['alembic', '-c', os.path.join(os.path.dirname(__file__), 'migrations', 'alembic.ini')] + sys.argv[2:])
         elif sys.argv[1] == 'runserver':
             bottle.run(
-                app=app.app,
+                app=app.get_app(),
                 **app.config.get(
                     'Server',
                     {

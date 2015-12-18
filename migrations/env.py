@@ -23,8 +23,10 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from app import models
 import app
-config.set_main_option('sqlalchemy.url',
-                       app.config.get('Database/RW'))
+config.set_main_option(
+    'sqlalchemy.url',
+    app.config.get('Database/Alter') or app.config.get('Database/Write') or app.config.get('Database/RW')
+)
 target_metadata = models.Base.metadata
 
 # other values from the config, defined by the needs of env.py,

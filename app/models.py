@@ -18,10 +18,39 @@ from app.lib.apitools import ApiError
 
 
 Base = sa.ext.declarative.declarative_base()
-engine = sa.create_engine(app.config.get('Database/RW'), echo=app.config.get('Database/echo', False))
+
+read_engine = sa.create_engine(app.config.get('Database/Read') or app.config.get('Database/RW'), echo=app.config.get('Database/echo', False))
+write_engine = sa.create_engine(app.config.get('Database/Write') or app.config.get('Database/RW'), echo=app.config.get('Database/echo', False))
+
+Session = sa.orm.scoped_session(sa.orm.sessionmaker(bind=read_engine))
+
+def read_session():
+    s = Session()
+    s.bind = read_engine
+    return s
+
+def write_session():
+    s = Session()
+    s.bind = write_engine
+    return s
+
+
+class ModelMeta(sa.ext.declarative.DeclarativeMeta):
+    @property
+    def read_session(cls):
+        return read_session()
+
+    @property
+    def write_session(cls):
+        return write_session()
+
+    @property
+    def query(cls):
+        return self.read_session.query(cls)
 
 
 class Model(Base):
+    __metaclass__ = ModelMeta
     __abstract__ = True
 
     def to_json(self):

@@ -1,33 +1,24 @@
 import arrow
 
-from flask import (
-    Blueprint,
-    url_for,
-    redirect,
+from bottle import (
+    Bottle,
     request,
-    current_app,
-    g,
-    abort,
     )
 
 from sqlalchemy.orm.exc import NoResultFound
 
-from app import db
-from app.lib.apitools import (
-    ApiError,
-    returns_json,
-    )
+from app.lib.apitools import ApiError
 from app.models import (
+    write_session,
     User,
     APIKey,
     )
 
 
-app = Blueprint('v1_user', __name__)
+app = Bottle()
 
 
-@app.route('/token', methods=['POST'])
-@returns_json
+@app.post('/token')
 def token_new():
     try:
         user = User.query.filter(User.username == request.form['username']).one()
@@ -35,8 +26,8 @@ def token_new():
             key = APIKey(
                 user=user
             )
-            db.session.add(key)
-            db.session.commit()
+            write_session().add(key)
+            write_session().commit()
             return key.key
     except KeyError:
         raise ApiError(400, "Username and password are required")
@@ -46,9 +37,8 @@ def token_new():
     raise ApiError(400, "Invalid username or password")
 
 
-@app.route('/token', methods=['GET'])
+@app.get('/token')
 @APIKey.authenticated
-@returns_json
 def token_list(auth_user):
     return [
         key.to_json()
