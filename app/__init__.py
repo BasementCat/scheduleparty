@@ -1,21 +1,19 @@
 import logging
 import os
 import json
-import hashlib
-import pickle
 
-from werkzeug.exceptions import default_exceptions
+from bottle import Bottle
 
-from flask import Flask
-from flask.ext.sqlalchemy import SQLAlchemy
-from flask.ext.bootstrap import Bootstrap
+import multiconfig
 
-from app.lib.apitools import json_error_handler
+from app.lib.apitools import ApiPlugin
 
 
-apps = {}
+config = multiconfig.getConfig('scheduleparty')
+config.load(os.path.join(os.path.dirname(__file__), '..', 'config', 'config-base.json'))
+# TODO: real env
+config.load(os.path.join(os.path.dirname(__file__), '..', 'config', 'config-dev.json'))
 
-db = SQLAlchemy()
 
 logging.basicConfig()
 
@@ -54,7 +52,7 @@ class Config(object):
     @classmethod
     def from_env(self, env=None):
         if env is None:
-            env = os.getenv('ORTALIS_ENV', 'dev')
+            env = os.getenv('SCHEDULEPARTY_ENV', 'dev')
 
         files = []
         for dirname in self.CONFIG_DIRS:
@@ -68,33 +66,6 @@ class Config(object):
         return self.from_files(*files)
 
 
-def create_app(config):
-    app = Flask(__name__)
-    app.config.from_object(config)
+app = Bottle()
 
-    db.init_app(app)
-    Bootstrap(app)
-
-    for code in default_exceptions.iterkeys():
-        app.errorhandler(code)(json_error_handler)
-    app.errorhandler(Exception)(json_error_handler)
-
-    from views.api.v1 import (
-        user as api_v1_user_view,
-        )
-    for blueprint, prefix in ((api_v1_user_view.app, '/api/v1.0/user'),):
-        app.register_blueprint(blueprint, url_prefix=prefix)
-
-    return app
-
-
-def get_app(config=None, env=None, force_new=False):
-    global apps
-
-    if config is None:
-        config = Config.from_env(env=env)
-
-    key = hashlib.sha256(pickle.dumps(config)).hexdigest()
-    if force_new or key not in apps:
-        apps[key] = create_app(config)
-    return apps[key]
+app.install(ApiPlugin())

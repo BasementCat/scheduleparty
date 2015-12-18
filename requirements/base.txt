@@ -1,14 +1,11 @@
 # TODO: versions for everything
 
-# Flask, and dependencies
-Flask==0.10.1
-
-# Flask plugins
-Flask-Script==2.0.3
-Flask-SQLAlchemy==2.0
-Flask-Bootstrap==3.3.5.6
-Flask-WTF==0.9.5
-Flask-Migrate
+bottle
+alembic
+sqlalchemy
+multiconfig
+# Required for multiconfig, for now
+PyYAML
 
 # MySQL and SA
 PyMySQL
