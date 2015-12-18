@@ -6,26 +6,22 @@ import arrow
 from slugify import slugify
 import bcrypt
 
+import sqlalchemy as sa
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 
-from flask import (
-    current_app,
-    abort,
-    g,
-    request,
-    )
-
 import sqlalchemy_utils as sau
 
-# from app.lib.times import parse_duration
-
-from app import db
+import app
 from app.lib.apitools import ApiError
 
 
-class Model(db.Model):
+Base = sa.ext.declarative.declarative_base()
+engine = sa.create_engine(app.config.get('Database/RW'), echo=app.config.get('Database/echo', False))
+
+
+class Model(Base):
     __abstract__ = True
 
     def to_json(self):
@@ -42,14 +38,14 @@ class Model(db.Model):
 
 
 class TimestampMixin(object):
-    created_at = db.Column(sau.ArrowType(), index=True, default=arrow.utcnow)
-    updated_at = db.Column(sau.ArrowType(), index=True, default=arrow.utcnow, onupdate=arrow.utcnow)
+    created_at = sa.Column(sau.ArrowType(), index=True, default=arrow.utcnow)
+    updated_at = sa.Column(sau.ArrowType(), index=True, default=arrow.utcnow, onupdate=arrow.utcnow)
 
 
 class NameDescMixin(object):
-    name = db.Column(db.UnicodeText(), nullable=False)
-    slug = db.Column(db.Unicode(255), nullable=False, unique=True)
-    description = db.Column(db.UnicodeText())
+    name = sa.Column(sa.UnicodeText(), nullable=False)
+    slug = sa.Column(sa.Unicode(255), nullable=False, unique=True)
+    description = sa.Column(sa.UnicodeText())
 
     @classmethod
     def slugify_name(self, name):
@@ -61,36 +57,36 @@ class NameDescMixin(object):
             self.slug = self.slugify_name(value)
 
 
-# permission_to_role = db.Table('permission_to_role', Model.metadata,
-#     db.Column('parent_role_id', db.BigInteger(), db.ForeignKey('role.id', ondelete='CASCADE', onupdate='CASCADE'), primary_key=True),
-#     db.Column('child_permission_id', db.BigInteger(), db.ForeignKey('permission.id', ondelete='CASCADE', onupdate='CASCADE'), primary_key=True)
+# permission_to_role = sa.Table('permission_to_role', Model.metadata,
+#     sa.Column('parent_role_id', sa.BigInteger(), sa.ForeignKey('role.id', ondelete='CASCADE', onupdate='CASCADE'), primary_key=True),
+#     sa.Column('child_permission_id', sa.BigInteger(), sa.ForeignKey('permission.id', ondelete='CASCADE', onupdate='CASCADE'), primary_key=True)
 # )
 
 
-# role_to_role = db.Table('role_to_role', Model.metadata,
-#     db.Column('parent_role_id', db.BigInteger(), db.ForeignKey('role.id', ondelete='CASCADE', onupdate='CASCADE'), primary_key=True),
-#     db.Column('child_role_id', db.BigInteger(), db.ForeignKey('role.id', ondelete='CASCADE', onupdate='CASCADE'), primary_key=True)
+# role_to_role = sa.Table('role_to_role', Model.metadata,
+#     sa.Column('parent_role_id', sa.BigInteger(), sa.ForeignKey('role.id', ondelete='CASCADE', onupdate='CASCADE'), primary_key=True),
+#     sa.Column('child_role_id', sa.BigInteger(), sa.ForeignKey('role.id', ondelete='CASCADE', onupdate='CASCADE'), primary_key=True)
 # )
 
 
-# role_to_user = db.Table('role_to_user', Model.metadata,
-#     db.Column('parent_user_id', db.BigInteger(), db.ForeignKey('user.id', ondelete='CASCADE', onupdate='CASCADE'), primary_key=True),
-#     db.Column('child_role_id', db.BigInteger(), db.ForeignKey('role.id', ondelete='CASCADE', onupdate='CASCADE'), primary_key=True)
+# role_to_user = sa.Table('role_to_user', Model.metadata,
+#     sa.Column('parent_user_id', sa.BigInteger(), sa.ForeignKey('user.id', ondelete='CASCADE', onupdate='CASCADE'), primary_key=True),
+#     sa.Column('child_role_id', sa.BigInteger(), sa.ForeignKey('role.id', ondelete='CASCADE', onupdate='CASCADE'), primary_key=True)
 # )
 
 
 class User(TimestampMixin, Model):
     __tablename__ = 'user'
-    id = db.Column(db.BigInteger(), primary_key=True)
-    username = db.Column(db.Unicode(255), nullable=False, index=True, unique=True)
-    username_slug = db.Column(db.Unicode(255), nullable=False, index=True, unique=True, default=u'')
-    email = db.Column(db.Unicode(255), nullable=False, index=True)
-    password = db.Column(sau.PasswordType(schemes=['bcrypt']), nullable=False)
-    # email_verification_code = db.Column(db.String(64), index=True)
-    # email_verification_expiration = db.Column(sau.ArrowType(), index=True)
-    # email_reset_code = db.Column(db.String(64), index=True)
-    # email_reset_expiration = db.Column(sau.ArrowType(), index=True)
-    # panels = db.relationship('Panel', secondary='Presenter')
+    id = sa.Column(sa.BigInteger(), primary_key=True)
+    username = sa.Column(sa.Unicode(255), nullable=False, index=True, unique=True)
+    username_slug = sa.Column(sa.Unicode(255), nullable=False, index=True, unique=True, default=u'')
+    email = sa.Column(sa.Unicode(255), nullable=False, index=True)
+    password = sa.Column(sau.PasswordType(schemes=['bcrypt']), nullable=False)
+    # email_verification_code = sa.Column(sa.String(64), index=True)
+    # email_verification_expiration = sa.Column(sau.ArrowType(), index=True)
+    # email_reset_code = sa.Column(sa.String(64), index=True)
+    # email_reset_expiration = sa.Column(sau.ArrowType(), index=True)
+    # panels = sa.orm.relationship('Panel', secondary='Presenter')
 
     @classmethod
     def slugify_username(self, username):
@@ -118,11 +114,11 @@ class User(TimestampMixin, Model):
 
 class APIKey(TimestampMixin, Model):
     __tablename__ = 'api_key'
-    key = db.Column(db.String(36), primary_key=True, autoincrement=False)
-    user_id = db.Column(db.BigInteger(), db.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
-    user = db.relationship('User', backref=db.backref('api_keys'))
-    expires_at = db.Column(sau.ArrowType(), index=True)
-    used_at = db.Column(sau.ArrowType(), index=True)
+    key = sa.Column(sa.String(36), primary_key=True, autoincrement=False)
+    user_id = sa.Column(sa.BigInteger(), sa.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
+    user = sa.orm.relationship('User', backref=sa.orm.backref('api_keys'))
+    expires_at = sa.Column(sau.ArrowType(), index=True)
+    used_at = sa.Column(sau.ArrowType(), index=True)
 
     def __init__(self, *args, **kwargs):
         self.key = str(uuid.uuid4())
@@ -165,51 +161,51 @@ class APIKey(TimestampMixin, Model):
 
 class Organization(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'organization'
-    id = db.Column(db.BigInteger(), primary_key=True)
-    website = db.Column(db.UnicodeText())
+    id = sa.Column(sa.BigInteger(), primary_key=True)
+    website = sa.Column(sa.UnicodeText())
 
 
 class Presenter(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'presenter'
-    id = db.Column(db.BigInteger(), primary_key=True)
-    organization_id = db.Column(db.BigInteger(), db.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
-    organization = db.relationship('Organization', backref=db.backref('presenters'))
-    user_id = db.Column(db.BigInteger(), db.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE'), index=True)
-    user = db.relationship('User', backref=db.backref('presenters'))
+    id = sa.Column(sa.BigInteger(), primary_key=True)
+    organization_id = sa.Column(sa.BigInteger(), sa.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
+    organization = sa.orm.relationship('Organization', backref=sa.orm.backref('presenters'))
+    user_id = sa.Column(sa.BigInteger(), sa.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE'), index=True)
+    user = sa.orm.relationship('User', backref=sa.orm.backref('presenters'))
 
 
 class Event(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'event'
-    id = db.Column(db.BigInteger(), primary_key=True)
-    organization_id = db.Column(db.BigInteger(), db.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
-    organization = db.relationship('Organization', backref=db.backref('events'))
-    inherit_description = db.Column(db.Boolean(), nullable=False, default=False)
-    website = db.Column(db.UnicodeText())
-    inherit_website = db.Column(db.Boolean(), nullable=False, default=True)
-    starts_at = db.Column(sau.ArrowType(), index=True)
-    ends_at = db.Column(sau.ArrowType(), index=True)
-    all_day = db.Column(db.Boolean(), nullable=False, default=True)
-    published_at = db.Column(sau.ArrowType(), index=True)
+    id = sa.Column(sa.BigInteger(), primary_key=True)
+    organization_id = sa.Column(sa.BigInteger(), sa.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
+    organization = sa.orm.relationship('Organization', backref=sa.orm.backref('events'))
+    inherit_description = sa.Column(sa.Boolean(), nullable=False, default=False)
+    website = sa.Column(sa.UnicodeText())
+    inherit_website = sa.Column(sa.Boolean(), nullable=False, default=True)
+    starts_at = sa.Column(sau.ArrowType(), index=True)
+    ends_at = sa.Column(sau.ArrowType(), index=True)
+    all_day = sa.Column(sa.Boolean(), nullable=False, default=True)
+    published_at = sa.Column(sau.ArrowType(), index=True)
 
 
 class Venue(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'venue'
-    id = db.Column(db.BigInteger(), primary_key=True)
-    organization_id = db.Column(db.BigInteger(), db.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
-    organization = db.relationship('Organization', backref=db.backref('venues'))
+    id = sa.Column(sa.BigInteger(), primary_key=True)
+    organization_id = sa.Column(sa.BigInteger(), sa.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
+    organization = sa.orm.relationship('Organization', backref=sa.orm.backref('venues'))
 
 
 class Panel(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'panel'
-    id = db.Column(db.BigInteger(), primary_key=True)
-    event_id = db.Column(db.BigInteger(), db.ForeignKey('event.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
-    event = db.relationship('Event', backref=db.backref('panels'))
-    venue_id = db.Column(db.BigInteger(), db.ForeignKey('venue.id', onupdate='CASCADE', ondelete='CASCADE'), index=True)
-    venue = db.relationship('Venue', backref=db.backref('panels'))
-    presenter_id = db.Column(db.BigInteger(), db.ForeignKey('presenter.id', onupdate='CASCADE', ondelete='CASCADE'), index=True)
-    presenter = db.relationship('Presenter', backref=db.backref('panels'))
-    starts_at = db.Column(sau.ArrowType(), nullable=False, index=True)
-    ends_at = db.Column(sau.ArrowType(), nullable=False, index=True)
-    tentative = db.Column(db.Boolean(), nullable=False, default=False)
-    published_at = db.Column(sau.ArrowType(), index=True)
-    cancelled = db.Column(db.Boolean(), nullable=False, default=False)
+    id = sa.Column(sa.BigInteger(), primary_key=True)
+    event_id = sa.Column(sa.BigInteger(), sa.ForeignKey('event.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
+    event = sa.orm.relationship('Event', backref=sa.orm.backref('panels'))
+    venue_id = sa.Column(sa.BigInteger(), sa.ForeignKey('venue.id', onupdate='CASCADE', ondelete='CASCADE'), index=True)
+    venue = sa.orm.relationship('Venue', backref=sa.orm.backref('panels'))
+    presenter_id = sa.Column(sa.BigInteger(), sa.ForeignKey('presenter.id', onupdate='CASCADE', ondelete='CASCADE'), index=True)
+    presenter = sa.orm.relationship('Presenter', backref=sa.orm.backref('panels'))
+    starts_at = sa.Column(sau.ArrowType(), nullable=False, index=True)
+    ends_at = sa.Column(sau.ArrowType(), nullable=False, index=True)
+    tentative = sa.Column(sa.Boolean(), nullable=False, default=False)
+    published_at = sa.Column(sau.ArrowType(), index=True)
+    cancelled = sa.Column(sa.Boolean(), nullable=False, default=False)

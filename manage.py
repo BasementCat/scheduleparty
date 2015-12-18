@@ -1,18 +1,36 @@
+import os
+import sys
 import bottle
+import logging
+from subprocess import call
 
-from app import app as main_app
+import app
 
+logger = logging.getLogger(__name__)
 
 if __name__ == '__main__':
-    bottle.run(
-        app=main_app,
-        server='wsgiref',
-        host='127.0.0.1',
-        port=8000,
-        interval=1,
-        reloader=True,
-        quiet=False,
-        plugins=None,
-        debug=True,
-        config=None,
-    )
+    if len(sys.argv) > 1:
+        if sys.argv[1] == 'db':
+            call(['alembic', '-c', os.path.join(os.path.dirname(__file__), 'migrations', 'alembic.ini')] + sys.argv[2:])
+        elif sys.argv[1] == 'runserver':
+            bottle.run(
+                app=app.app,
+                **app.config.get(
+                    'Server',
+                    {
+                        'server': 'wsgiref',
+                        'host': '127.0.0.1',
+                        'port': 8000,
+                        'interval': 1,
+                        'reloader': True,
+                        'quiet': False,
+                        'plugins': None,
+                        'debug': True,
+                        'config': None,
+                    }
+                )
+            )
+        else:
+            logger.error("Don't know what to do with %s", sys.argv[1])
+    else:
+        logger.error("No arguments")

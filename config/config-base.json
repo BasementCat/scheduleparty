@@ -1,13 +1,17 @@
 {
-    "DEBUG": false,
-    "SECRET_KEY": "Put a real secret key here",
-
-    "SITE_NAME": "Scheduleparty",
-
-    "SQLALCHEMY_DATABASE_URI": "connector+dialect://user:pass@host/database",
-    "SQLALCHEMY_BINDS": {},
-
-    "REDIS": {
+    "Server": {
+        "server": "wsgiref",
+        "host": "0.0.0.0",
+        "port": 8000,
+        "interval": 1,
+        "reloader": true,
+        "quiet": false,
+        "debug": true
+    },
+    "Database": {
+        "RW": "connector+dialect://user:pass@host/database"
+    },
+    "Redis": {
         "default": {
             "host": "localhost",
             "port": 6379,
