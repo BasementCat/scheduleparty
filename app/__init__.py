@@ -5,8 +5,8 @@ import json
 from bottle import Bottle
 
 import multiconfig
-
-from app.lib.apitools import ApiPlugin
+from bottleutils.apps import setup
+from bottleutils.response import JsonResponsePlugin
 
 
 ENV = os.environ.get('SCHEDULEPARTY_ENV', 'dev')
@@ -36,16 +36,16 @@ def get_app():
     from views.api.v1.user import app as api_v1_user_app
 
     apps = [
-        [main_app, None],
         [api_v1_user_app, '/v1.0/user'],
     ]
 
-    plugins = [ApiPlugin()]
+    plugins = [JsonResponsePlugin()]
 
-    for app, mountpoint in apps:
-        if mountpoint is not None:
-            main_app.mount(mountpoint, app)
-        for plugin in plugins:
-            app.install(plugin)
+    setup(
+        main_app,
+        sub_apps=apps,
+        plugins=plugins,
+        error_handler_generators=[JsonResponsePlugin.getErrorHandler],
+    )
 
     return main_app

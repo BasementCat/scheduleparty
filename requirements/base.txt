@@ -3,6 +3,8 @@
 bottle
 alembic
 sqlalchemy
+bottleutils
+
 multiconfig
 # Required for multiconfig, for now
 PyYAML

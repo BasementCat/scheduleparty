@@ -15,7 +15,6 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 import sqlalchemy_utils as sau
 
 import app
-from app.lib.apitools import ApiError
 
 
 Base = sa.ext.declarative.declarative_base()
@@ -185,7 +184,7 @@ class APIKey(TimestampMixin, Model):
                 # Can't find the key
                 error = "Invalid credentials"
 
-            raise ApiError(401, str(error), None, {'WWW-Authenticate': 'X-API-Key'})
+            raise bottle.HTTPError(status=401, body=str(error), **{'WWW-Authenticate': 'X-API-Key'})
         return _authenticated_impl
 
 

@@ -3,11 +3,11 @@ import arrow
 from bottle import (
     Bottle,
     request,
+    abort,
     )
 
 from sqlalchemy.orm.exc import NoResultFound
 
-from app.lib.apitools import ApiError
 from app.models import (
     write_session,
     User,
@@ -30,11 +30,11 @@ def token_new():
             write_session().commit()
             return key.key
     except KeyError:
-        raise ApiError(400, "Username and password are required")
+        abort(400, "Username and password are required")
     except NoResultFound:
         pass
 
-    raise ApiError(400, "Invalid username or password")
+    raise abort(400, "Invalid username or password")
 
 
 @app.get('/token')
