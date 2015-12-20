@@ -40,15 +40,16 @@ class ApiPlugin(object):
                 if 'result' not in response:
                     response = {'result': response}
                 return response
-            except Exception as e:
+            except Exception as error:
                 logger.error("%s", str(error), exc_info=True)
                 if isinstance(error, ApiError):
                     response_code, result, error_data, headers = error
-                elif isinstance(error, HTTPException):
-                    result = str(error)
-                    response_code = error.code
-                    error_data = {}
-                    headers = {}
+                # TODO: handle bottle httperrors
+                # elif isinstance(error, HTTPException):
+                #     result = str(error)
+                #     response_code = error.code
+                #     error_data = {}
+                #     headers = {}
                 else:
                     result = 'Internal Server Error'
                     response_code = 500

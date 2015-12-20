@@ -2,6 +2,7 @@ import functools
 import os
 import uuid
 
+import bottle
 import arrow
 from slugify import slugify
 import bcrypt
@@ -46,7 +47,7 @@ class ModelMeta(sa.ext.declarative.DeclarativeMeta):
 
     @property
     def query(cls):
-        return self.read_session.query(cls)
+        return cls.read_session.query(cls)
 
 
 class Model(Base):
@@ -165,7 +166,7 @@ class APIKey(TimestampMixin, Model):
         def _authenticated_impl(*args, **kwargs):
             error = None
             try:
-                auth_method, given_key = request.headers['Authorization'].split(' ', 1)
+                auth_method, given_key = bottle.request.headers['Authorization'].split(' ', 1)
                 assert auth_method == 'X-API-Key', "Invalid authorization method: " + auth_method
                 assert given_key, "No key provided in authorization header"
                 key = self.query.options(joinedload('user')).filter(self.key == given_key).one()
@@ -179,7 +180,7 @@ class APIKey(TimestampMixin, Model):
                 error = "No authentication was provided"
             except AssertionError as e:
                 # Something's wrong with the key
-                error = "Malformed authorization header: '" + request.headers['Authorization'] + "'"
+                error = "Malformed authorization header: '" + bottle.request.headers['Authorization'] + "'"
             except NoResultFound as e:
                 # Can't find the key
                 error = "Invalid credentials"
