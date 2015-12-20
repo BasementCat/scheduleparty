@@ -1,14 +1,10 @@
 import arrow
 
 from bottle import Bottle
+from bottleutils.database import Pagination
 
 from sqlalchemy.orm.exc import NoResultFound
 
-from app import db
-from app.lib.apitools import (
-    returns_json,
-    paginated,
-    )
 from app.models import (
     User,
     APIKey,
@@ -22,4 +18,4 @@ app = Bottle()
 @app.get('/')
 @APIKey.authenticated
 def organization_list(auth_user):
-    return paginated(Organization.query)
+    return Pagination(Organization.query).json_response

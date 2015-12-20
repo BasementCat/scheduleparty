@@ -6,11 +6,11 @@ import bottle
 import arrow
 from slugify import slugify
 import bcrypt
+from bottleutils.database import SQLAlchemyJsonMixin
 
 import sqlalchemy as sa
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import joinedload
-from sqlalchemy.orm.attributes import InstrumentedAttribute
 
 import sqlalchemy_utils as sau
 
@@ -49,21 +49,9 @@ class ModelMeta(sa.ext.declarative.DeclarativeMeta):
         return cls.read_session.query(cls)
 
 
-class Model(Base):
+class Model(SQLAlchemyJsonMixin, Base):
     __metaclass__ = ModelMeta
     __abstract__ = True
-
-    def to_json(self):
-        out = {}
-        for attrname, clsattr in vars(self.__class__).items():
-            if isinstance(clsattr, InstrumentedAttribute):
-                attr = getattr(self, attrname)
-                if isinstance(attr, arrow.arrow.Arrow):
-                    attr = str(attr)
-                elif isinstance(attr, Model):
-                    continue
-                out[attrname] = attr
-        return out
 
 
 class TimestampMixin(object):

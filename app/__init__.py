@@ -34,9 +34,11 @@ def get_app():
     main_app = Bottle()
 
     from views.api.v1.user import app as api_v1_user_app
+    from views.api.v1.organization import app as api_v1_organization_app
 
     apps = [
         [api_v1_user_app, '/v1.0/user'],
+        [api_v1_organization_app, '/v1.0/organization'],
     ]
 
     plugins = [JsonResponsePlugin()]
