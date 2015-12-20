@@ -4,6 +4,7 @@ bottle
 alembic
 sqlalchemy
 bottleutils
+jsonschema
 
 multiconfig
 # Required for multiconfig, for now

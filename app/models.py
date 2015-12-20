@@ -1,12 +1,15 @@
+import inspect
 import functools
 import os
 import uuid
+import copy
 
 import bottle
 import arrow
 from slugify import slugify
 import bcrypt
 from bottleutils.database import SQLAlchemyJsonMixin
+import jsonschema
 
 import sqlalchemy as sa
 from sqlalchemy.orm.exc import NoResultFound
@@ -53,6 +56,42 @@ class Model(SQLAlchemyJsonMixin, Base):
     __metaclass__ = ModelMeta
     __abstract__ = True
 
+    @classmethod
+    def get_json_schema(self):
+        schema = {'type': 'object', 'properties': {}, 'required': []}
+        for cls in inspect.getmro(self):
+            if hasattr(cls, 'json_schema'):
+                schema['properties'].update(cls.json_schema)
+        schema['required'] = [k for k, v in schema['properties'].items() if not v.get('optional')]
+        return schema
+
+    @classmethod
+    def validate_request(self, json_object, skip_invalid=True):
+        if json_object is None:
+            bottle.abort(400, "No JSON object could be parsed from the request")
+        schema = self.get_json_schema()
+        real_json_object = copy.deepcopy(json_object)
+        invalid_keys = set(real_json_object.keys()) - set(schema['properties'].keys())
+        if skip_invalid:
+            real_json_object = {k: v for k, v in real_json_object.items() if k not in invalid_keys}
+        else:
+            for k in invalid_keys:
+                if k in real_json_object:
+                    bottle.abort(400, "Invalid key: " + k)
+        try:
+            jsonschema.validate(real_json_object, schema)
+            return real_json_object
+        except jsonschema.exceptions.ValidationError as e:
+            raise bottle.HTTPError(status=400, body={'error': {'code': 400, 'message': e.message, 'data': {'validator': e.validator, 'value': e.validator_value}}})
+
+    @classmethod
+    def from_request(self, json_object, skip_invalid=True):
+        return self(**self.validate_request(json_object, skip_invalid=skip_invalid))
+
+    def populate_from_request(self, json_object, skip_invalid=True):
+        for k, v in self.validate_request(json_object, skip_invalid=skip_invalid).items():
+            setattr(self, k, v)
+
 
 class TimestampMixin(object):
     created_at = sa.Column(sau.ArrowType(), index=True, default=arrow.utcnow)
@@ -63,6 +102,17 @@ class NameDescMixin(object):
     name = sa.Column(sa.UnicodeText(), nullable=False)
     slug = sa.Column(sa.Unicode(255), nullable=False, unique=True)
     description = sa.Column(sa.UnicodeText())
+
+    json_schema = {
+        'name': {
+            'type': 'string',
+            'optional': False,
+        },
+        'description': {
+            'type': 'string',
+            'optional': True,
+        },
+    }
 
     @classmethod
     def slugify_name(self, name):
@@ -180,6 +230,23 @@ class Organization(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'organization'
     id = sa.Column(sa.BigInteger(), primary_key=True)
     website = sa.Column(sa.UnicodeText())
+
+    json_schema = {
+        'website': {
+            'type': 'string',
+            'optional': True,
+        },
+    }
+
+
+class OrganizationUser(TimestampMixin, Model):
+    __tablename__ = 'organization_user'
+    id = sa.Column(sa.BigInteger(), primary_key=True)
+    role = sa.Column(sa.Enum('administrator', 'editor'), nullable=False, default='editor')
+    organization_id = sa.Column(sa.BigInteger(), sa.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
+    organization = sa.orm.relationship('Organization', backref=sa.orm.backref('users'))
+    user_id = sa.Column(sa.BigInteger(), sa.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
+    user = sa.orm.relationship('User', backref=sa.orm.backref('organizations'))
 
 
 class Presenter(NameDescMixin, TimestampMixin, Model):
