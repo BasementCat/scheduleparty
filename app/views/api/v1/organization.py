@@ -9,7 +9,8 @@ from bottleutils.database import Pagination
 from sqlalchemy.orm.exc import NoResultFound
 
 from app.models import (
-    write_session,
+    ReadSession,
+    WriteSession,
     User,
     APIKey,
     Organization,
@@ -23,20 +24,21 @@ app = Bottle()
 @app.get('/')
 @APIKey.authenticated
 def organization_list(auth_user):
-    return Pagination(Organization.query).json_response
+    with ReadSession(closing=True) as session:
+        return Pagination(session.query(Organization)).json_response
 
 
 @app.put('/')
 @APIKey.authenticated
 def organization_create(auth_user):
-    # import pudb;pudb.set_trace()
-    organization = Organization.from_request(request.json)
-    org_user = OrganizationUser(
-        role='administrator',
-        organization=organization,
-        user=auth_user
-    )
-    write_session().add(organization)
-    write_session().add(org_user)
-    write_session().commit()
-    return organization.to_json()
+    with WriteSession(closing=True) as session:
+        # import pudb;pudb.set_trace()
+        organization = Organization.from_request(request.json)
+        org_user = OrganizationUser(
+            role='administrator',
+            organization=organization,
+            user=auth_user
+        )
+        session.add(organization)
+        session.add(org_user)
+        return organization.to_json()

@@ -27,29 +27,60 @@ write_engine = sa.create_engine(app.config.get('Database/Write') or app.config.g
 
 Session = sa.orm.scoped_session(sa.orm.sessionmaker(bind=read_engine))
 
-def read_session():
-    s = Session()
-    s.bind = read_engine
-    return s
 
-def write_session():
-    s = Session()
-    s.bind = write_engine
-    return s
+class SessionContext(object):
+    def __init__(self, bind=None, closing=False):
+        self.session = None
+        self.bind = bind
+        self.old_bind = None
+        self.closing = closing
+
+    def __enter__(self):
+        if self.session is None:
+            self.session = Session()
+        if self.bind:
+            self.old_bind = self.session.bind
+            self.session.bind = self.bind
+        return self.session
+
+    def __exit__(self, type, value, traceback):
+        if type or value or traceback:
+            self.session.rollback()
+        else:
+            self.session.commit()
+
+        if self.old_bind:
+            self.session.bind = self.old_bind
+            self.bind = None
+
+        if self.closing:
+            self.session.close()
+            self.session = None
+
+
+class ReadSession(SessionContext):
+    pass
+
+
+class WriteSession(SessionContext):
+    def __init__(self, *args, **kwargs):
+        kwargs['bind'] = write_engine
+        super(WriteSession, self).__init__(*args, **kwargs)
 
 
 class ModelMeta(sa.ext.declarative.DeclarativeMeta):
-    @property
-    def read_session(cls):
-        return read_session()
+    pass
+    # @property
+    # def read_session(cls):
+    #     return read_session()
 
-    @property
-    def write_session(cls):
-        return write_session()
+    # @property
+    # def write_session(cls):
+    #     return write_session()
 
-    @property
-    def query(cls):
-        return cls.read_session.query(cls)
+    # @property
+    # def query(cls):
+    #     return cls.read_session.query(cls)
 
 
 class Model(SQLAlchemyJsonMixin, Base):
@@ -201,28 +232,29 @@ class APIKey(TimestampMixin, Model):
     def authenticated(self, callback):
         @functools.wraps(callback)
         def _authenticated_impl(*args, **kwargs):
-            error = None
-            try:
-                auth_method, given_key = bottle.request.headers['Authorization'].split(' ', 1)
-                assert auth_method == 'X-API-Key', "Invalid authorization method: " + auth_method
-                assert given_key, "No key provided in authorization header"
-                key = self.query.options(joinedload('user')).filter(self.key == given_key).one()
-                if not key.is_expired:
-                    kwargs['auth_user'] = key.user
-                    return callback(*args, **kwargs)
-                # Key is expired
-                error = "Your authentication key is expired"
-            except KeyError as e:
-                # No authorization header
-                error = "No authentication was provided"
-            except AssertionError as e:
-                # Something's wrong with the key
-                error = "Malformed authorization header: '" + bottle.request.headers['Authorization'] + "'"
-            except NoResultFound as e:
-                # Can't find the key
-                error = "Invalid credentials"
+            with ReadSession() as session:
+                error = None
+                try:
+                    auth_method, given_key = bottle.request.headers['Authorization'].split(' ', 1)
+                    assert auth_method == 'X-API-Key', "Invalid authorization method: " + auth_method
+                    assert given_key, "No key provided in authorization header"
+                    key = session.query(self).options(joinedload('user')).filter(self.key == given_key).one()
+                    if not key.is_expired:
+                        kwargs['auth_user'] = key.user
+                        return callback(*args, **kwargs)
+                    # Key is expired
+                    error = "Your authentication key is expired"
+                except KeyError as e:
+                    # No authorization header
+                    error = "No authentication was provided"
+                except AssertionError as e:
+                    # Something's wrong with the key
+                    error = "Malformed authorization header: '" + bottle.request.headers['Authorization'] + "'"
+                except NoResultFound as e:
+                    # Can't find the key
+                    error = "Invalid credentials"
 
-            raise bottle.HTTPError(status=401, body=str(error), **{'WWW-Authenticate': 'X-API-Key'})
+                raise bottle.HTTPError(status=401, body=str(error), **{'WWW-Authenticate': 'X-API-Key'})
         return _authenticated_impl
 
 

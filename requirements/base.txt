@@ -5,6 +5,8 @@ alembic
 sqlalchemy
 bottleutils
 jsonschema
+# Required for jsonschema
+functools32
 
 multiconfig
 # Required for multiconfig, for now
