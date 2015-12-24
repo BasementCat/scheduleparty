@@ -32,7 +32,6 @@ def organization_list(auth_user):
 @APIKey.authenticated
 def organization_create(auth_user):
     with WriteSession(closing=True) as session:
-        # import pudb;pudb.set_trace()
         organization = Organization.from_request(request.json)
         org_user = OrganizationUser(
             role='administrator',
@@ -41,4 +40,5 @@ def organization_create(auth_user):
         )
         session.add(organization)
         session.add(org_user)
+        session.commit()
         return organization.to_json()
