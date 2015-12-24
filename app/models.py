@@ -270,11 +270,22 @@ class Organization(NameDescMixin, TimestampMixin, Model):
         },
     }
 
+    def require_role(self, user, role):
+        try:
+            with ReadSession() as session:
+                org_user = session.query(OrganizationUser).filter(OrganizationUser.organization == self, OrganizationUser.user == user).one()
+                user_role = OrganizationUser.available_roles.index(org_user.role)
+                expected_role = OrganizationUser.available_roles.index(role)
+                assert user_role <= expected_role
+        except (NoResultFound, AssertionError):
+            bottle.abort(403, "Permission denied")
+
 
 class OrganizationUser(TimestampMixin, Model):
+    available_roles = ['administrator', 'editor']
     __tablename__ = 'organization_user'
     id = sa.Column(sa.BigInteger(), primary_key=True)
-    role = sa.Column(sa.Enum('administrator', 'editor'), nullable=False, default='editor')
+    role = sa.Column(sa.Enum(*available_roles), nullable=False, default='editor')
     organization_id = sa.Column(sa.BigInteger(), sa.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
     organization = sa.orm.relationship('Organization', backref=sa.orm.backref('users'))
     user_id = sa.Column(sa.BigInteger(), sa.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
