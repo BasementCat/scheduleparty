@@ -363,6 +363,13 @@ class Presenter(NameDescMixin, TimestampMixin, Model):
                     bottle.abort(404, {'code': 404, 'message': 'No such user: "{}"'.format(value), 'data': {'slug': value}})
 
 
+class Venue(NameDescMixin, TimestampMixin, Model):
+    __tablename__ = 'venue'
+    id = sa.Column(sa.BigInteger(), primary_key=True)
+    organization_id = sa.Column(sa.BigInteger(), sa.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
+    organization = sa.orm.relationship('Organization', backref=sa.orm.backref('venues'))
+
+
 class Event(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'event'
     id = sa.Column(sa.BigInteger(), primary_key=True)
@@ -375,13 +382,6 @@ class Event(NameDescMixin, TimestampMixin, Model):
     ends_at = sa.Column(sau.ArrowType(), index=True)
     all_day = sa.Column(sa.Boolean(), nullable=False, default=True)
     published_at = sa.Column(sau.ArrowType(), index=True)
-
-
-class Venue(NameDescMixin, TimestampMixin, Model):
-    __tablename__ = 'venue'
-    id = sa.Column(sa.BigInteger(), primary_key=True)
-    organization_id = sa.Column(sa.BigInteger(), sa.ForeignKey('organization.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
-    organization = sa.orm.relationship('Organization', backref=sa.orm.backref('venues'))
 
 
 class Panel(NameDescMixin, TimestampMixin, Model):

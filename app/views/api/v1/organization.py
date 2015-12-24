@@ -20,6 +20,7 @@ from app.models import (
     OrganizationUser,
     User,
     Presenter,
+    Venue,
     )
 
 
@@ -70,6 +71,19 @@ def organization_slug(writing=False, role=None):
                             del kwargs['organization_presenter_slug']
                         except NoResultFound:
                             abort(404, {'code': 404, 'message': 'No such organization presenter: "{}"'.format(kwargs['organization_presenter_slug']), 'data': {'slug': kwargs['organization_presenter_slug']}})
+
+                    if 'organization_venue_slug' in kwargs:
+                        try:
+                            organization_venue = session.query(Venue) \
+                                .filter(
+                                    Venue.organization == organization,
+                                    Venue.slug == kwargs['organization_venue_slug']
+                                ) \
+                                .one()
+                            kwargs['organization_venue'] = organization_venue
+                            del kwargs['organization_venue_slug']
+                        except NoResultFound:
+                            abort(404, {'code': 404, 'message': 'No such organization venue: "{}"'.format(kwargs['organization_venue_slug']), 'data': {'slug': kwargs['organization_venue_slug']}})
 
                 return callback(*args, **kwargs)
         return _organization_slug_inner
@@ -182,3 +196,35 @@ def organization_presenters_create(auth_user, organization, organization_present
             session.delete(organization_presenter)
             session.commit()
             return organization.to_json(with_relationships={'presenters': {'user': None}})['presenters']
+
+
+@app.get('/<organization_slug>/venues')
+@organization_slug()
+def organization_venues_get(organization):
+    return organization.to_json(with_relationships={'venues': {'user': None}})['venues']
+
+
+@app.put('/<organization_slug>/venues')
+@APIKey.authenticated
+@organization_slug(writing=True, role='editor')
+def organization_venues_create(auth_user, organization):
+    with WriteSession() as session:
+        with session.no_autoflush:
+            org_venue = Venue.from_request(request.json)
+            if session.query(Venue).filter(Venue.organization == organization, Venue.slug == org_venue.slug).first():
+                abort(400, {'code': 400, 'message': 'That venue already exists on this organization', 'data': {'venue': org_venue.to_json()}})
+            org_venue.organization = organization
+            session.add(org_venue)
+            session.commit()
+            return organization.to_json(with_relationships={'venues': {'venue': None}})['venues']
+
+
+@app.delete('/<organization_slug>/venues/<organization_venue_slug>')
+@APIKey.authenticated
+@organization_slug(writing=True, role='editor')
+def organization_venues_create(auth_user, organization, organization_venue):
+    with WriteSession() as session:
+        with session.no_autoflush:
+            session.delete(organization_venue)
+            session.commit()
+            return organization.to_json(with_relationships={'venues': {'venue': None}})['venues']
