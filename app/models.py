@@ -96,10 +96,12 @@ class Model(SQLAlchemyJsonMixin, Base):
     @classmethod
     def get_json_schema(self):
         schema = {'type': 'object', 'properties': {}, 'required': []}
-        for cls in inspect.getmro(self):
+        for cls in reversed(inspect.getmro(self)):
             if hasattr(cls, 'json_schema'):
                 schema['properties'].update(cls.json_schema)
         schema['required'] = [k for k, v in schema['properties'].items() if not v.get('optional')]
+        if not schema['required']:
+            del schema['required']
         return schema
 
     @classmethod
@@ -329,12 +331,6 @@ class OrganizationUser(TimestampMixin, Model):
                 except NoResultFound:
                     bottle.abort(404, {'code': 404, 'message': 'No such user: "{}"'.format(value), 'data': {'slug': value}})
 
-    # def __init__(self, *args, **kwargs):
-    #     if 'username' in kwargs:
-    #         self.username = kwargs['username']
-    #         del kwargs['username']
-    #     super(OrganizationUser, self).__init__(*args, **kwargs)
-
 
 class Presenter(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'presenter'
@@ -343,6 +339,28 @@ class Presenter(NameDescMixin, TimestampMixin, Model):
     organization = sa.orm.relationship('Organization', backref=sa.orm.backref('presenters'))
     user_id = sa.Column(sa.BigInteger(), sa.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE'), index=True)
     user = sa.orm.relationship('User', backref=sa.orm.backref('presenters'))
+
+    json_schema = {
+        'username': {
+            'type': 'string',
+            'optional': True,
+        },
+    }
+
+    @property
+    def username(self):
+        if self.user:
+            return self.user.username
+        return None
+
+    @username.setter
+    def username(self, value):
+        with ReadSession() as session:
+            with session.no_autoflush:
+                try:
+                    self.user = session.query(User).filter(User.username_slug == User.slugify_username(value)).one()
+                except NoResultFound:
+                    bottle.abort(404, {'code': 404, 'message': 'No such user: "{}"'.format(value), 'data': {'slug': value}})
 
 
 class Event(NameDescMixin, TimestampMixin, Model):

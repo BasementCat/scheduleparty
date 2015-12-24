@@ -19,6 +19,7 @@ from app.models import (
     Organization,
     OrganizationUser,
     User,
+    Presenter,
     )
 
 
@@ -46,13 +47,29 @@ def organization_slug(writing=False, role=None):
                             organization_user = session.query(OrganizationUser) \
                                 .filter(
                                     OrganizationUser.organization == organization,
-                                    OrganizationUser.user.has(User.username_slug == User.slugify_username(kwargs['organization_user_slug']))
+                                    OrganizationUser.user.has(User.username_slug == kwargs['organization_user_slug'])
                                 ) \
                                 .one()
                             kwargs['organization_user'] = organization_user
                             del kwargs['organization_user_slug']
                         except NoResultFound:
                             abort(404, {'code': 404, 'message': 'No such organization user: "{}"'.format(kwargs['organization_user_slug']), 'data': {'slug': kwargs['organization_user_slug']}})
+
+                    if 'organization_presenter_slug' in kwargs:
+                        try:
+                            organization_presenter = session.query(Presenter) \
+                                .filter(
+                                    Presenter.organization == organization,
+                                    (
+                                        (Presenter.slug == kwargs['organization_presenter_slug']) |
+                                        (Presenter.user.has(User.username_slug == kwargs['organization_presenter_slug']))
+                                    )
+                                ) \
+                                .one()
+                            kwargs['organization_presenter'] = organization_presenter
+                            del kwargs['organization_presenter_slug']
+                        except NoResultFound:
+                            abort(404, {'code': 404, 'message': 'No such organization presenter: "{}"'.format(kwargs['organization_presenter_slug']), 'data': {'slug': kwargs['organization_presenter_slug']}})
 
                 return callback(*args, **kwargs)
         return _organization_slug_inner
@@ -131,3 +148,37 @@ def organization_users_create(auth_user, organization, organization_user):
             session.delete(organization_user)
             session.commit()
             return organization.to_json(with_relationships={'users': {'user': None}})['users']
+
+
+@app.get('/<organization_slug>/presenters')
+@organization_slug()
+def organization_presenters_get(organization):
+    return organization.to_json(with_relationships={'presenters': {'user': None}})['presenters']
+
+
+@app.put('/<organization_slug>/presenters')
+@APIKey.authenticated
+@organization_slug(writing=True, role='editor')
+def organization_presenters_create(auth_user, organization):
+    with WriteSession() as session:
+        with session.no_autoflush:
+            org_presenter = Presenter.from_request(request.json)
+            if session.query(Presenter).filter(Presenter.organization == organization, Presenter.slug == org_presenter.slug).first():
+                abort(400, {'code': 400, 'message': 'That presenter already exists on this organization', 'data': {'presenter': org_presenter.to_json()}})
+            if org_presenter.user and session.query(Presenter).filter(Presenter.organization == organization, Presenter.user == org_presenter.user).first():
+                abort(400, {'code': 400, 'message': 'A presenter with that user already exists on this organization', 'data': {'presenter': org_presenter.to_json()}})
+            org_presenter.organization = organization
+            session.add(org_presenter)
+            session.commit()
+            return organization.to_json(with_relationships={'presenters': {'user': None}})['presenters']
+
+
+@app.delete('/<organization_slug>/presenters/<organization_presenter_slug>')
+@APIKey.authenticated
+@organization_slug(writing=True, role='editor')
+def organization_presenters_create(auth_user, organization, organization_presenter):
+    with WriteSession() as session:
+        with session.no_autoflush:
+            session.delete(organization_presenter)
+            session.commit()
+            return organization.to_json(with_relationships={'presenters': {'user': None}})['presenters']
