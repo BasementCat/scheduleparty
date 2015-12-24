@@ -8,6 +8,9 @@
         "quiet": false,
         "debug": true
     },
+    "Timezones": {
+        "Default": "UTC"
+    },
     "Database": {
         "RW": "connector+dialect://user:pass@host/database"
     },
