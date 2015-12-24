@@ -43,12 +43,13 @@ class SessionContext(object):
             self.session.bind = self.bind
         return self.session
 
-    def __exit__(self, type, value, traceback):
+    def _commit_or_rollback(self, type, value, traceback):
         if type or value or traceback:
             self.session.rollback()
         else:
             self.session.commit()
 
+    def _replace_bind(self, type, value, traceback):
         if self.old_bind:
             self.session.bind = self.old_bind
             self.bind = None
@@ -57,9 +58,14 @@ class SessionContext(object):
             self.session.close()
             self.session = None
 
+    def __exit__(self, *args):
+        self._commit_or_rollback(*args)
+        self._replace_bind(*args)
+
 
 class ReadSession(SessionContext):
-    pass
+    def __exit__(self, *args):
+        self._replace_bind(*args)
 
 
 class WriteSession(SessionContext):
@@ -195,6 +201,12 @@ class User(TimestampMixin, Model):
         if key == 'username':
             self.username_slug = self.slugify_username(value)
 
+    def to_json(self, *args, **kwargs):
+        out = super(User, self).to_json(*args, **kwargs)
+        del out['password']
+        del out['email']
+        return out
+
     # @classmethod
     # def make_verification_code(self, groups=3, grouplen=2):
     #     return '-'.join([''.join(['{:02X}'.format(c) for c in map(ord, os.urandom(grouplen))]) for _ in range(groups)])
@@ -290,6 +302,38 @@ class OrganizationUser(TimestampMixin, Model):
     organization = sa.orm.relationship('Organization', backref=sa.orm.backref('users'))
     user_id = sa.Column(sa.BigInteger(), sa.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
     user = sa.orm.relationship('User', backref=sa.orm.backref('organizations'))
+
+    json_schema = {
+        'username': {
+            'type': 'string',
+            'optional': False,
+        },
+        'role': {
+            'enum': available_roles,
+            'optional': False,
+        }
+    }
+
+    @property
+    def username(self):
+        if self.user:
+            return self.user.username
+        return None
+
+    @username.setter
+    def username(self, value):
+        with ReadSession() as session:
+            with session.no_autoflush:
+                try:
+                    self.user = session.query(User).filter(User.username_slug == User.slugify_username(value)).one()
+                except NoResultFound:
+                    bottle.abort(404, {'code': 404, 'message': 'No such user: "{}"'.format(value), 'data': {'slug': value}})
+
+    # def __init__(self, *args, **kwargs):
+    #     if 'username' in kwargs:
+    #         self.username = kwargs['username']
+    #         del kwargs['username']
+    #     super(OrganizationUser, self).__init__(*args, **kwargs)
 
 
 class Presenter(NameDescMixin, TimestampMixin, Model):

@@ -18,6 +18,7 @@ from app.models import (
     APIKey,
     Organization,
     OrganizationUser,
+    User,
     )
 
 
@@ -39,6 +40,19 @@ def organization_slug(writing=False, role=None):
                         del kwargs['organization_slug']
                     except NoResultFound:
                         abort(404, {'code': 404, 'message': 'No such organization: "{}"'.format(kwargs['organization_slug']), 'data': {'slug': kwargs['organization_slug']}})
+
+                    if 'organization_user_slug' in kwargs:
+                        try:
+                            organization_user = session.query(OrganizationUser) \
+                                .filter(
+                                    OrganizationUser.organization == organization,
+                                    OrganizationUser.user.has(User.username_slug == User.slugify_username(kwargs['organization_user_slug']))
+                                ) \
+                                .one()
+                            kwargs['organization_user'] = organization_user
+                            del kwargs['organization_user_slug']
+                        except NoResultFound:
+                            abort(404, {'code': 404, 'message': 'No such organization user: "{}"'.format(kwargs['organization_user_slug']), 'data': {'slug': kwargs['organization_user_slug']}})
 
                 return callback(*args, **kwargs)
         return _organization_slug_inner
@@ -84,3 +98,36 @@ def organization_update(auth_user, organization):
         organization.populate_from_request(request.json)
         session.commit()
         return organization.to_json()
+
+
+@app.get('/<organization_slug>/users')
+@APIKey.authenticated
+@organization_slug(role='editor')
+def organization_users_get(auth_user, organization):
+    return organization.to_json(with_relationships={'users': {'user': None}})['users']
+
+
+@app.put('/<organization_slug>/users')
+@APIKey.authenticated
+@organization_slug(writing=True, role='administrator')
+def organization_users_create(auth_user, organization):
+    with WriteSession() as session:
+        with session.no_autoflush:
+            org_user = OrganizationUser.from_request(request.json)
+            if session.query(OrganizationUser).filter(OrganizationUser.organization == organization, OrganizationUser.user == org_user.user).first():
+                abort(400, {'code': 400, 'message': 'That user already exists on this organization', 'data': {'user': org_user.user.to_json()}})
+            org_user.organization = organization
+            session.add(org_user)
+            session.commit()
+            return organization.to_json(with_relationships={'users': {'user': None}})['users']
+
+
+@app.delete('/<organization_slug>/users/<organization_user_slug>')
+@APIKey.authenticated
+@organization_slug(writing=True, role='administrator')
+def organization_users_create(auth_user, organization, organization_user):
+    with WriteSession() as session:
+        with session.no_autoflush:
+            session.delete(organization_user)
+            session.commit()
+            return organization.to_json(with_relationships={'users': {'user': None}})['users']
