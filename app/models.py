@@ -386,6 +386,59 @@ class Event(NameDescMixin, TimestampMixin, Model):
     published_at = sa.Column(sau.ArrowType(), index=True)
     timezone = sa.Column(sau.TimezoneType(), default=lambda: app.config.get('Timezones/Default/Event', app.config.get('Timezones/Default/App', 'UTC')))
 
+    json_schema = {
+        'inherit_description': {
+            'type': 'boolean',
+            'optional': True,
+            'default': False,
+        },
+        'website': {
+            'type': 'string',
+            'optional': True,
+        },
+        'inherit_website': {
+            'type': 'boolean',
+            'optional': True,
+            'default': True,
+        },
+        'starts_at': {
+            'type': 'string',
+            'optional': True,
+        },
+        'ends_at': {
+            'type': 'string',
+            'optional': True,
+        },
+        'all_day': {
+            'type': 'boolean',
+            'optional': True,
+            'default': True,
+        },
+        'published': {
+            'type': 'boolean',
+            'optional': True,
+        }
+    }
+
+    @property
+    def published(self):
+        return True if self.published_at else False
+
+    @published.setter
+    def published(self, value):
+        if value:
+            self.published_at = arrow.utcnow()
+        else:
+            self.published_at = None
+
+    def to_json(self, *args, **kwargs):
+        out = super(Event, self).to_json(*args, **kwargs)
+        if self.inherit_description:
+            out['description'] = self.organization.description
+        if self.inherit_website:
+            out['website'] = self.organization.website
+        return out
+
 
 class Panel(NameDescMixin, TimestampMixin, Model):
     __tablename__ = 'panel'
