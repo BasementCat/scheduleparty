@@ -10,6 +10,9 @@ from slugify import slugify
 import bcrypt
 from bottleutils.database import SQLAlchemyJsonMixin
 import jsonschema
+# from dateutil.tz import tzfile
+# from pytz import tzinfo
+from datetime import tzinfo
 
 import sqlalchemy as sa
 from sqlalchemy.orm.exc import NoResultFound
@@ -131,6 +134,19 @@ class Model(SQLAlchemyJsonMixin, Base):
         for k, v in self.validate_request(json_object, skip_invalid=skip_invalid).items():
             setattr(self, k, v)
 
+    def to_json(self, *args, **kwargs):
+        def _filter(item):
+            if isinstance(item, list):
+                return [_filter(v) for v in item]
+            elif isinstance(item, dict):
+                return {k: _filter(v) for k, v in item.items()}
+            else:
+                if isinstance(item, tzinfo):
+                    # return item.tzname()
+                    return str(item)
+                return item
+        return _filter(super(Model, self).to_json(*args, **kwargs))
+
 
 class TimestampMixin(object):
     created_at = sa.Column(sau.ArrowType(), index=True, default=arrow.utcnow)
@@ -188,7 +204,7 @@ class User(TimestampMixin, Model):
     username_slug = sa.Column(sa.Unicode(255), nullable=False, index=True, unique=True, default=u'')
     email = sa.Column(sa.Unicode(255), nullable=False, index=True)
     password = sa.Column(sau.PasswordType(schemes=['bcrypt']), nullable=False)
-    timezone = sa.Column(sau.TimezoneType(), default=lambda: app.config.get('Timezones/Default/User', app.config.get('Timezones/Default/App', 'UTC')))
+    timezone = sa.Column(sau.TimezoneType(backend='pytz'), default=lambda: app.config.get('Timezones/Default/User', app.config.get('Timezones/Default/App', 'UTC')))
     # email_verification_code = sa.Column(sa.String(64), index=True)
     # email_verification_expiration = sa.Column(sau.ArrowType(), index=True)
     # email_reset_code = sa.Column(sa.String(64), index=True)
@@ -305,7 +321,7 @@ class OrganizationUser(TimestampMixin, Model):
     organization = sa.orm.relationship('Organization', backref=sa.orm.backref('users'))
     user_id = sa.Column(sa.BigInteger(), sa.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False, index=True)
     user = sa.orm.relationship('User', backref=sa.orm.backref('organizations'))
-    timezone = sa.Column(sau.TimezoneType(), default=lambda: app.config.get('Timezones/Default/Organization', app.config.get('Timezones/Default/App', 'UTC')))
+    timezone = sa.Column(sau.TimezoneType(backend='pytz'), default=lambda: app.config.get('Timezones/Default/Organization', app.config.get('Timezones/Default/App', 'UTC')))
 
     json_schema = {
         'username': {
@@ -384,7 +400,7 @@ class Event(NameDescMixin, TimestampMixin, Model):
     ends_at = sa.Column(sau.ArrowType(), index=True)
     all_day = sa.Column(sa.Boolean(), nullable=False, default=True)
     published_at = sa.Column(sau.ArrowType(), index=True)
-    timezone = sa.Column(sau.TimezoneType(), default=lambda: app.config.get('Timezones/Default/Event', app.config.get('Timezones/Default/App', 'UTC')))
+    timezone = sa.Column(sau.TimezoneType(backend='pytz'), default=lambda: app.config.get('Timezones/Default/Event', app.config.get('Timezones/Default/App', 'UTC')))
 
     json_schema = {
         'inherit_description': {

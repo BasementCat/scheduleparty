@@ -21,6 +21,7 @@ from app.models import (
     User,
     Presenter,
     Venue,
+    Event,
     )
 
 
@@ -84,6 +85,19 @@ def organization_slug(writing=False, role=None):
                             del kwargs['organization_venue_slug']
                         except NoResultFound:
                             abort(404, {'code': 404, 'message': 'No such organization venue: "{}"'.format(kwargs['organization_venue_slug']), 'data': {'slug': kwargs['organization_venue_slug']}})
+
+                    if 'organization_event_slug' in kwargs:
+                        try:
+                            organization_event = session.query(Event) \
+                                .filter(
+                                    Event.organization == organization,
+                                    Event.slug == kwargs['organization_event_slug']
+                                ) \
+                                .one()
+                            kwargs['organization_event'] = organization_event
+                            del kwargs['organization_event_slug']
+                        except NoResultFound:
+                            abort(404, {'code': 404, 'message': 'No such organization event: "{}"'.format(kwargs['organization_event_slug']), 'data': {'slug': kwargs['organization_event_slug']}})
 
                 return callback(*args, **kwargs)
         return _organization_slug_inner
@@ -228,3 +242,41 @@ def organization_venues_create(auth_user, organization, organization_venue):
             session.delete(organization_venue)
             session.commit()
             return organization.to_json(with_relationships={'venues': {'venue': None}})['venues']
+
+
+@app.get('/<organization_slug>/events')
+@organization_slug()
+def organization_events_get(organization):
+    return organization.to_json(with_relationships={'events': None})['events']
+
+
+@app.put('/<organization_slug>/events')
+@APIKey.authenticated
+@organization_slug(writing=True, role='editor')
+def organization_events_create(auth_user, organization):
+    with WriteSession() as session:
+        with session.no_autoflush:
+            org_event = Event.from_request(request.json)
+            if session.query(Event).filter(Event.organization == organization, Event.slug == org_event.slug).first():
+                abort(400, {'code': 400, 'message': 'That event already exists on this organization', 'data': {'event': org_event.to_json()}})
+            org_event.organization = organization
+            session.add(org_event)
+            session.commit()
+            return organization.to_json(with_relationships={'events': None})['events']
+
+
+@app.get('/<organization_slug>/events/<organization_event_slug>')
+@organization_slug()
+def organization_events_create(organization, organization_event):
+    return org_event.to_json()
+
+
+@app.delete('/<organization_slug>/events/<organization_event_slug>')
+@APIKey.authenticated
+@organization_slug(writing=True, role='editor')
+def organization_events_create(auth_user, organization, organization_event):
+    with WriteSession() as session:
+        with session.no_autoflush:
+            session.delete(organization_event)
+            session.commit()
+            return organization.to_json(with_relationships={'events': None})['events']
