@@ -22,6 +22,7 @@ from app.models import (
     Presenter,
     Venue,
     Event,
+    Panel,
     )
 
 
@@ -98,6 +99,19 @@ def organization_slug(writing=False, role=None):
                             del kwargs['organization_event_slug']
                         except NoResultFound:
                             abort(404, {'code': 404, 'message': 'No such organization event: "{}"'.format(kwargs['organization_event_slug']), 'data': {'slug': kwargs['organization_event_slug']}})
+
+                        if 'event_panel_slug' in kwargs:
+                            try:
+                                event_panel = session.query(Panel) \
+                                    .filter(
+                                        Panel.event == organization_event,
+                                        Panel.slug == kwargs['event_panel_slug']
+                                    ) \
+                                    .one()
+                                kwargs['event_panel'] = event_panel
+                                del kwargs['event_panel_slug']
+                            except NoResultFound:
+                                abort(404, {'code': 404, 'message': 'No such event panel: "{}"'.format(kwargs['event_panel_slug']), 'data': {'slug': kwargs['event_panel_slug']}})
 
                 return callback(*args, **kwargs)
         return _organization_slug_inner
@@ -280,3 +294,34 @@ def organization_events_create(auth_user, organization, organization_event):
             session.delete(organization_event)
             session.commit()
             return organization.to_json(with_relationships={'events': None})['events']
+
+
+@app.put('/<organization_slug>/events/<organization_event_slug>/panels')
+@APIKey.authenticated
+@organization_slug(writing=True, role='editor')
+def organization_events_create(auth_user, organization, organization_event):
+    with WriteSession() as session:
+        with session.no_autoflush:
+            event_panel = Panel.from_request(request.json, event=organization_event)
+            if session.query(Panel).filter(Panel.event == organization_event, Panel.slug == event_panel.slug).first():
+                abort(400, {'code': 400, 'message': 'That panel already exists on this event', 'data': {'panel': event_panel.to_json()}})
+            session.add(event_panel)
+            session.commit()
+            return organization_event.to_json(with_relationships={'panels': {'venue': None, 'presenter': {'user': None}}})['panels']
+
+
+@app.get('/<organization_slug>/events/<organization_event_slug>/panels')
+@organization_slug()
+def organization_events_create(organization, organization_event):
+    return organization_event.to_json(with_relationships={'panels': {'venue': None, 'presenter': {'user': None}}})['panels']
+
+
+@app.delete('/<organization_slug>/events/<organization_event_slug>/panels/<event_panel_slug>')
+@APIKey.authenticated
+@organization_slug(writing=True, role='editor')
+def organization_events_create(auth_user, organization, organization_event, event_panel):
+    with WriteSession() as session:
+        with session.no_autoflush:
+            session.delete(event_panel)
+            session.commit()
+            return organization_event.to_json(with_relationships={'panels': {'venue': None, 'presenter': {'user': None}}})['panels']

@@ -3,6 +3,7 @@ import functools
 import os
 import uuid
 import copy
+from collections import OrderedDict
 
 import bottle
 import arrow
@@ -127,8 +128,11 @@ class Model(SQLAlchemyJsonMixin, Base):
             raise bottle.HTTPError(status=400, body={'error': {'code': 400, 'message': e.message, 'data': {'validator': e.validator, 'value': e.validator_value}}})
 
     @classmethod
-    def from_request(self, json_object, skip_invalid=True):
-        return self(**self.validate_request(json_object, skip_invalid=skip_invalid))
+    def from_request(self, json_object, skip_invalid=True, **kwargs):
+        out = self(**kwargs)
+        for k, v in self.validate_request(json_object, skip_invalid=skip_invalid).items():
+            setattr(out, k, v)
+        return out
 
     def populate_from_request(self, json_object, skip_invalid=True):
         for k, v in self.validate_request(json_object, skip_invalid=skip_invalid).items():
@@ -465,8 +469,67 @@ class Panel(NameDescMixin, TimestampMixin, Model):
     venue = sa.orm.relationship('Venue', backref=sa.orm.backref('panels'))
     presenter_id = sa.Column(sa.BigInteger(), sa.ForeignKey('presenter.id', onupdate='CASCADE', ondelete='CASCADE'), index=True)
     presenter = sa.orm.relationship('Presenter', backref=sa.orm.backref('panels'))
-    starts_at = sa.Column(sau.ArrowType(), nullable=False, index=True)
-    ends_at = sa.Column(sau.ArrowType(), nullable=False, index=True)
+    starts_at = sa.Column(sau.ArrowType(), index=True)
+    ends_at = sa.Column(sau.ArrowType(), index=True)
     tentative = sa.Column(sa.Boolean(), nullable=False, default=False)
     published_at = sa.Column(sau.ArrowType(), index=True)
     cancelled = sa.Column(sa.Boolean(), nullable=False, default=False)
+
+    json_schema = {
+        'venue': {
+            'type': 'string',
+            'optional': True,
+        },
+        'presenter': {
+            'type': 'string',
+            'optional': True,
+        },
+        'starts_at': {
+            'type': 'string',
+            'optional': True,
+        },
+        'ends_at': {
+            'type': 'string',
+            'optional': True,
+        },
+        'tentative': {
+            'type': 'boolean',
+            'optional': True,
+            'default': False,
+        },
+        'published': {
+            'type': 'boolean',
+            'optional': True,
+        },
+        'cancelled': {
+            'type': 'boolean',
+            'optional': True,
+        },
+    }
+
+    def __setattr__(self, key, value):
+        if isinstance(value, basestring):
+            with ReadSession() as session:
+                with session.no_autoflush:
+                    if key == 'venue':
+                        try:
+                            value = session.query(Venue).filter(Venue.organization == self.event.organization, Venue.slug == value).one()
+                        except NoResultFound:
+                            bottle.abort(404, {'code': 404, 'message': 'No such venue: "{}"'.format(value), 'data': {'slug': value}})
+                    elif key == 'presenter':
+                        try:
+                            value = session.query(Presenter).filter(Presenter.organization == self.event.organization, Presenter.slug == value).one()
+                        except NoResultFound:
+                            bottle.abort(404, {'code': 404, 'message': 'No such presenter: "{}"'.format(value), 'data': {'slug': value}})
+        super(Panel, self).__setattr__(key, value)
+
+    @property
+    def published(self):
+        return True if self.published_at else False
+
+    @published.setter
+    def published(self, value):
+        if value:
+            self.published_at = arrow.utcnow()
+        else:
+            self.published_at = None
